@@ -1,0 +1,1022 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rubik's Cube Algebra</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+/* Layout idea: a permanently dark 3D stage on the left, a themed reading panel of live math on the right. */
+:root{
+  --bg:#f5f5f8; --card:#ffffff; --ink:#1b1c24; --ink-2:#5b5d6e; --line:#dcdde6;
+  --accent:#b02a93; --accent-soft:#f6e3f1;
+  --good:#1d8a4e; --bad:#c2372c;
+  --stage:#13141a; --stage-ink:#e9e9f0; --stage-2:#8f91a3; --stage-line:#2b2d3a; --stage-btn:#20222c;
+  --body:"Instrument Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#1a1b22; --card:#22242d; --ink:#ececf2; --ink-2:#a3a5b6; --line:#353744;
+    --accent:#e77fd0; --accent-soft:#3b2438; --good:#5fd08f; --bad:#ff8a7d; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#1a1b22; --card:#22242d; --ink:#ececf2; --ink-2:#a3a5b6; --line:#353744;
+  --accent:#e77fd0; --accent-soft:#3b2438; --good:#5fd08f; --bad:#ff8a7d; color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 var(--body);display:grid;grid-template-columns:minmax(0,1.1fr) minmax(380px,.9fr)}
+button,input{font:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* ---------- stage ---------- */
+.stage{background:var(--stage);color:var(--stage-ink);display:flex;flex-direction:column;min-height:0;min-width:0}
+.view{position:relative;flex:1;min-height:300px;overflow:hidden}
+.view canvas{display:block;width:100%;height:100%;touch-action:none;cursor:grab}
+.view canvas:active{cursor:grabbing}
+.axis-label{position:absolute;font:600 13px var(--mono);pointer-events:none;transform:translate(-50%,-50%);text-shadow:0 0 6px #000}
+.hint{position:absolute;left:16px;top:12px;font-size:12.5px;color:var(--stage-2);max-width:70%;pointer-events:none}
+.fallback{position:absolute;inset:0;display:grid;place-items:center;padding:24px;text-align:center;color:var(--stage-2)}
+.controls{border-top:1px solid var(--stage-line);padding:12px 16px 14px;display:flex;flex-direction:column;gap:10px}
+.moves{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}
+.moves button{background:var(--stage-btn);color:var(--stage-ink);border:1px solid var(--stage-line);border-radius:6px;padding:7px 0;font:600 14px var(--mono);cursor:pointer;border-bottom-width:3px}
+.moves button:hover{background:#2b2e3b}
+.row{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center}
+.sbtn{background:transparent;color:var(--stage-ink);border:1px solid var(--stage-line);border-radius:6px;padding:6px 11px;cursor:pointer;font-size:13.5px}
+.sbtn:hover{background:var(--stage-btn)}
+.sbtn.primary{background:var(--stage-ink);color:var(--stage);border-color:var(--stage-ink);font-weight:600}
+.slider{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--stage-2)}
+.slider input{width:90px;accent-color:#e77fd0}
+.word{font:12.5px/1.5 var(--mono);color:var(--stage-2);overflow-wrap:anywhere;min-height:2.9em}
+.word b{color:var(--stage-ink);font-weight:600}
+
+/* ---------- panel ---------- */
+.panel{overflow-y:auto;min-height:0;padding:22px 22px 40px;display:flex;flex-direction:column;gap:16px}
+h1{font-size:25px;line-height:1.15;margin:0;letter-spacing:-.01em;text-wrap:balance}
+.lede{margin:6px 0 0;color:var(--ink-2);max-width:60ch}
+.tabs{display:flex;flex-wrap:wrap;gap:4px;background:var(--line);padding:3px;border-radius:9px;align-self:flex-start}
+.tabs button{border:0;background:transparent;color:var(--ink-2);padding:6px 14px;border-radius:7px;cursor:pointer;font-weight:600;font-size:14px}
+.tabs button[aria-selected="true"]{background:var(--card);color:var(--ink)}
+.tabpane{display:flex;flex-direction:column;gap:14px}
+.tabpane[hidden]{display:none}
+section{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:15px 16px 16px;display:flex;flex-direction:column;gap:10px}
+h2{font-size:15.5px;margin:0;display:flex;gap:9px;align-items:baseline;text-wrap:balance}
+h2 .n{font:600 12px var(--mono);color:var(--accent)}
+p{margin:0;max-width:65ch}
+.muted{color:var(--ink-2);font-size:13.5px}
+code,.m{font-family:var(--mono);font-size:.92em}
+.eq{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;font:14px var(--mono);overflow-x:auto;padding:2px 0}
+.mx{display:inline-grid;grid-template-columns:repeat(var(--n),1.75em);border-inline:2px solid var(--ink);border-radius:4px;padding:2px 5px;gap:1px 0;font-variant-numeric:tabular-nums;flex:none}
+.mx b{font-weight:600;text-align:center}
+.mx b.z{color:var(--ink-2);font-weight:400;opacity:.55}
+.mx i.hd{height:6px;margin:0 3px 3px;border-radius:2px;border:1px solid rgba(0,0,0,.25)}
+.lab{font:12px var(--mono);color:var(--ink-2)}
+.pill{display:inline-flex;align-items:center;gap:5px;font:600 12.5px var(--body);padding:2px 9px;border-radius:99px;border:1px solid currentColor;white-space:nowrap}
+.pill.good{color:var(--good)} .pill.bad{color:var(--bad)} .pill.neutral{color:var(--ink-2)}
+.chips{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:6px}
+.chip{display:flex;align-items:center;gap:7px;font:13px var(--mono);border:1px solid var(--line);border-radius:6px;padding:4px 8px}
+.sw{width:14px;height:14px;border-radius:3px;border:1px solid rgba(0,0,0,.3);flex:none}
+.kv{display:grid;grid-template-columns:auto 1fr auto;gap:6px 12px;align-items:center;font-size:14px}
+.kv .v{font-family:var(--mono);font-size:13px;color:var(--ink-2)}
+.btn{background:var(--card);color:var(--ink);border:1px solid var(--line);border-bottom-width:2px;border-radius:6px;padding:5px 11px;cursor:pointer;font-size:13.5px}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.mono{font-family:var(--mono);font-size:12.5px}
+.field{display:flex;gap:8px;flex-wrap:wrap}
+.field input{flex:1;min-width:150px;font:14px var(--mono);padding:6px 9px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink)}
+.big{font:600 15px var(--mono);overflow-wrap:anywhere}
+.result{background:var(--accent-soft);border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:4px}
+.result strong{color:var(--accent)}
+footer{color:var(--ink-2);font-size:12.5px}
+footer a{color:inherit}
+@media (max-width:900px){
+  html,body{height:auto}
+  body{display:block}
+  .view{height:380px;flex:none}
+  .panel{overflow:visible;padding:18px 16px 32px}
+}
+</style>
+</head>
+<body>
+
+<div class="stage">
+  <div class="view" id="view">
+    <canvas id="gl" aria-label="Interactive 3D Rubik's cube"></canvas>
+    <div class="hint">Drag to orbit. Scroll to zoom. Click a cubelet to inspect its vector and matrix.</div>
+    <span class="axis-label" id="ax0" style="color:#5fd08f">e<sub>x</sub></span>
+    <span class="axis-label" id="ax1" style="color:#ff7a6e">e<sub>y</sub></span>
+    <span class="axis-label" id="ax2" style="color:#f3f0e8">e<sub>z</sub></span>
+  </div>
+  <div class="controls">
+    <div class="moves" id="moves"></div>
+    <div class="row">
+      <button class="sbtn primary" id="scramble">Scramble</button>
+      <button class="sbtn" id="undo">Apply inverse word</button>
+      <button class="sbtn" id="reset">Reset</button>
+      <label class="slider" for="speed">Speed <input id="speed" type="range" min="1" max="10" value="6"></label>
+      <label class="slider" for="explode">Explode <input id="explode" type="range" min="0" max="100" value="0"></label>
+      <label class="slider" for="xray"><input id="xray" type="checkbox" style="width:auto"> X-ray</label>
+    </div>
+    <div class="word" id="word"></div>
+  </div>
+</div>
+
+<main class="panel">
+  <header>
+    <h1>The cube as matrices, and as a group</h1>
+    <p class="lede">Every panel below is computed live from the cube on the left. Turn a face, or press <code>U D L R F B</code> on your keyboard (hold Shift for the reverse turn).</p>
+  </header>
+
+  <div class="tabs" role="tablist">
+    <button role="tab" id="tab-la" aria-selected="true" aria-controls="pane-la">Linear algebra</button>
+    <button role="tab" id="tab-gt" aria-selected="false" aria-controls="pane-gt">Group theory</button>
+    <button role="tab" id="tab-qa" aria-selected="false" aria-controls="pane-qa">Questions</button>
+    <button role="tab" id="tab-sv" aria-selected="false" aria-controls="pane-sv">Solve</button>
+  </div>
+
+  <!-- ================= LINEAR ALGEBRA ================= -->
+  <div class="tabpane" id="pane-la" role="tabpanel" aria-labelledby="tab-la">
+    <section>
+      <h2>The idea in one minute</h2>
+      <p>The obvious way to model a cube is a list of 54 stickers plus big tables saying where each sticker goes on each move. This model replaces all of that with one small vector and one 3×3 matrix per cubelet.</p>
+      <div class="kv" style="grid-template-columns:auto 1fr">
+        <span class="m">state</span><span>Each cubelet is a pair <span class="m">(c, R)</span>: who it is, and how it has been rotated.</span>
+        <span class="m">move</span><span>A dot product picks the nine cubelets of a face; one matrix product turns them.</span>
+        <span class="m">test</span><span>One equation per cubelet says whether it is solved.</span>
+      </div>
+      <p class="muted">Read the cards in order. Each one shows its formula with live numbers for the cubelet outlined in pink. Click another cubelet to change it. This model describes the cube and checks it; it does not tell you which move to make. The Solve tab does that.</p>
+    </section>
+
+    <section>
+      <h2><span class="n">1</span>A cubelet is a vector</h2>
+      <p>Inside the cube is a rigid cross that holds the six centre pieces. They spin in place but never travel, so they fix a coordinate frame: origin at the core, <span class="m">x</span> through front and back, <span class="m">y</span> through right and left, <span class="m">z</span> through top and bottom.</p>
+      <div><button class="btn" id="open-up">Open the cube up</button></div>
+      <div class="chips" style="grid-template-columns:1fr">
+        <span class="chip" style="font-family:var(--body)"><i class="sw" style="background:#8d93a8"></i>Core: a six-armed cross. It is the only part that never moves.</span>
+        <span class="chip" style="font-family:var(--body)"><i class="sw" style="background:#c9a24a"></i>Centres: each is screwed onto one arm with a spring, so it can spin but not leave.</span>
+        <span class="chip" style="font-family:var(--body)"><i class="sw" style="background:#5f6c9c"></i>Edges: a tab on the back hooks behind the two neighbouring centres.</span>
+        <span class="chip" style="font-family:var(--body)"><i class="sw" style="background:#b56a8e"></i>Corners: a foot on the back is trapped behind the three neighbouring edges.</span>
+      </div>
+      <p class="muted">This is a simplified cartoon of the mechanism: real parts are curved so the layers can slide, and the arms do not stretch.</p>
+      <p>A 3×3×3 block has 27 positions. Each gets the integer vector <span class="m">c</span> of its place in the solved cube, with entries −1, 0 or 1. The middle one, <span class="m">(0, 0, 0)</span>, is the hidden core, which leaves 26 cubelets. The vector <span class="m">c</span> never changes. It is the cubelet's name.</p>
+      <div class="eq" id="la-c"></div>
+      <p>The 1-norm ‖c‖₁ = |x| + |y| + |z| counts the non-zero entries, and that is exactly the number of stickers.</p>
+      <div class="kv">
+        <span>Centres</span><span class="v">‖c‖₁ = 1, e.g. (0, 0, 1)</span><span>6 pieces</span>
+        <span>Edges</span><span class="v">‖c‖₁ = 2, e.g. (1, 0, 1)</span><span>12 pieces</span>
+        <span>Corners</span><span class="v">‖c‖₁ = 3, e.g. (1, 1, 1)</span><span>8 pieces</span>
+      </div>
+    </section>
+
+    <section>
+      <h2><span class="n">2</span>Colours are basis vectors</h2>
+      <p>A colour is not a label or a string. It is the unit vector of the face where that colour's centre sits. Six colours, six signed basis vectors.</p>
+      <div class="chips" id="la-colors"></div>
+      <p class="muted">This is why the model needs no colour bookkeeping: a sticker that faces direction +e<sub>x</sub> when solved simply is green.</p>
+    </section>
+
+    <section>
+      <h2><span class="n">3</span>A configuration is the pair (c, R)</h2>
+      <p>Every one of the 26 cubelets carries its own three things.</p>
+      <div class="kv" style="grid-template-columns:auto 1fr">
+        <span class="m">c</span><span>Its home address. Fixed forever.</span>
+        <span class="m">R</span><span>Its own 3×3 rotation matrix: the total rotation it has undergone since the cube was solved.</span>
+        <span class="m">p</span><span>Where it is right now. Not stored, but computed: <span class="m">p = R·c</span>.</span>
+      </div>
+      <p><b>Where R comes from.</b> Nobody chooses it. It starts as the identity <span class="m">I</span>, so at first <span class="m">p = I·c = c</span> and the cubelet is at home. Each time a face turns and this cubelet is on that face, its matrix becomes <span class="m">M·R</span>, where <span class="m">M</span> is that turn. Otherwise it is left alone. After many moves, <span class="m">R</span> is the product of all the turns that carried this cubelet, newest on the left.</p>
+      <div class="eq" id="la-p"></div>
+      <p><b>A worked example.</b> Take the top-front-right corner, <span class="m">c = (1, 1, 1)</span>. Turn U, then F:</p>
+      <div class="eq" id="qa-ex1"></div>
+      <div class="eq" id="qa-ex2"></div>
+      <div><button class="btn" id="qa-show">Play this example on the cube</button></div>
+      <p><b>Position is not the whole story.</b> After those two turns the corner is back at <span class="m">(1, 1, 1)</span>, yet <span class="m">R</span> is not the identity: the corner is in its home spot, twisted. So knowing <span class="m">p</span> and <span class="m">c</span> does not tell you <span class="m">R</span>. A corner fits any spot in three ways and an edge in two.</p>
+      <p><b>Stickers fill the gap.</b> The columns of <span class="m">diag(c)</span> are the cubelet's stickers, as directions. Multiply by <span class="m">R</span> and each column shows where that sticker points now. The bar above a column is the sticker's colour.</p>
+      <div class="eq" id="la-s"></div>
+      <div id="la-solved"></div>
+    </section>
+
+    <section>
+      <h2><span class="n">4</span>A move is a dot product, then a matrix product</h2>
+      <p>A face is named by its unit normal <span class="m">v</span>, the arrow pointing out of it. For the top face <span class="m">v = (0, 0, 1)</span>.</p>
+      <p><b>Select.</b> The dot product <span class="m">v·p</span> reads off one coordinate of <span class="m">p</span>: how far the cubelet sits along that face's axis. It is 1 on that face, 0 in the middle slice and −1 on the opposite face. So a cubelet turns exactly when <span class="m">v·p = v·(R·c) &gt; 0</span>, and nine cubelets always pass.</p>
+      <p><b>Turn.</b> Each selected cubelet updates with one multiplication, <span class="m">R ← M·R</span>, where <span class="m">M</span> is a quarter turn about <span class="m">v</span>. That single line replaces the sticker tables.</p>
+      <div class="eq" id="la-move"></div>
+      <div id="la-move-sel" class="muted"></div>
+      <p class="muted">Hover a move button to preview which cubelets pass the test.</p>
+      <p><b>Why centres stay put.</b> A rotation leaves its own axis unchanged: <span class="m">M·v = v</span>. A vector that a matrix leaves unchanged is called an eigenvector with eigenvalue 1. The centre of the turning face has <span class="m">c = v</span>, so its position <span class="m">M·c = c</span> does not change.</p>
+    </section>
+
+    <section>
+      <h2><span class="n">5</span>Solved means R·diag(c) = diag(c)</h2>
+      <p>The cube is solved when every sticker faces its own colour's direction. That is one equation per cubelet.</p>
+      <div class="row" id="la-count"></div>
+      <p><b>The eigenvector reading.</b> Take the equation one column at a time. It says <span class="m">R·(sticker direction) = sticker direction</span> for each sticker: every sticker direction must be an eigenvector of <span class="m">R</span> with eigenvalue 1. How strict that is depends on the number of stickers.</p>
+      <div class="kv">
+        <span>Centre</span><span class="v">1 direction fixed</span><span>any spin about that axis passes</span>
+        <span>Edge</span><span class="v">2 directions fixed</span><span>only R = I passes</span>
+        <span>Corner</span><span class="v">3 directions fixed</span><span>only R = I passes</span>
+      </div>
+      <p><b>Why not simply ask for R = I?</b> That would be too strict for centres. A centre spins about its own axis on every turn of its face, so its <span class="m">R</span> is rarely the identity, yet its single sticker still points the right way. Select a centre and turn its face to see this.</p>
+      <p><b>The twisted corner again.</b> In the example from card 3, <span class="m">R·(1,1,1) = (1,1,1)</span>, so <span class="m">c</span> itself is an eigenvector and the piece is in its place. But <span class="m">R·(1,0,0) = (0,0,1)</span>: the green sticker now points up, so the test fails. Twists and flips are caught with no extra flags.</p>
+      <p class="muted">This is a test, not a solver. It tells you whether you are done, never what to do next. For that, see the Solve tab.</p>
+    </section>
+  </div>
+
+  <!-- ================= GROUP THEORY ================= -->
+  <div class="tabpane" id="pane-gt" role="tabpanel" aria-labelledby="tab-gt" hidden>
+    <section>
+      <h2><span class="n">1</span>Moves form a group</h2>
+      <p>Do one move after another and you get another scramble (closure). Doing nothing is the identity. Every move can be undone (inverses). Those three facts make the set of reachable states a group <span class="m">G</span>, generated by the six face turns.</p>
+      <p>To undo a word, reverse it and invert each letter: <span class="m">(ab)⁻¹ = b⁻¹a⁻¹</span>.</p>
+      <div class="result"><span class="lab">current word</span><span class="big" id="gt-word"></span><span class="lab">its inverse</span><span class="big" id="gt-inv"></span></div>
+      <div><button class="btn" id="gt-undo">Apply the inverse word</button></div>
+    </section>
+
+    <section>
+      <h2><span class="n">2</span>Order matters, and every word has an order</h2>
+      <p>The group is not commutative: <span class="m">R U</span> and <span class="m">U R</span> land in different states. The commutator <span class="m">R U R′ U′</span> measures the difference. If the two turns commuted it would do nothing.</p>
+      <p>Because <span class="m">G</span> is finite, repeating any word eventually returns to where you started. The number of repeats is the word's order.</p>
+      <div class="field">
+        <input id="gt-in" value="R U R' U'" aria-label="Move word" spellcheck="false" autocomplete="off">
+        <button class="btn" id="gt-once">Play once</button>
+        <button class="btn" id="gt-all">Play all</button>
+      </div>
+      <div class="row" id="gt-presets"></div>
+      <div class="result" id="gt-order"></div>
+    </section>
+
+    <section>
+      <h2><span class="n">3</span>What no move can change</h2>
+      <p>Three quantities stay fixed under every face turn. They are computed here straight from the matrices <span class="m">R</span>.</p>
+      <div class="kv" id="gt-inv-rows"></div>
+      <div id="gt-verdict"></div>
+      <p class="muted">Take the cube apart and reassemble it wrongly to break them. No sequence of turns will repair the damage. Only the same pop-out trick will.</p>
+      <div class="row">
+        <button class="btn" id="gt-twist">Twist the top-front-right corner</button>
+        <button class="btn" id="gt-flip">Flip the top-front edge</button>
+        <button class="btn" id="gt-swap">Swap two top edges</button>
+      </div>
+    </section>
+
+    <section>
+      <h2><span class="n">4</span>Counting the group</h2>
+      <p>Reassembling freely gives <span class="m">8! · 3⁸ · 12! · 2¹²</span> ≈ 5.19 × 10²⁰ cubes. The three invariants cut that into 3 × 2 × 2 = 12 separate families that turns cannot connect, so</p>
+      <p class="big">|G| = 8! · 3⁷ · 12! · 2¹⁰ = 43,252,003,274,489,856,000</p>
+      <div class="kv" id="gt-cycles"></div>
+    </section>
+
+    <section>
+      <h2><span class="n">5</span>Where the two views meet</h2>
+      <p>The matrices <span class="m">R</span> are never arbitrary. Each one is among the 24 rotations of a cube, which themselves form a group (the same shape as the permutations of four objects). A cube state is a list of 26 of these matrices, and a move multiplies nine of them on the left by <span class="m">M</span>.</p>
+      <p>So the linear-algebra model is a concrete representation of <span class="m">G</span>: group elements become matrices, and composing moves becomes matrix multiplication. The invariants in card 3 are functions of those matrices that every <span class="m">M</span> leaves alone.</p>
+    </section>
+  </div>
+
+  <!-- ================= QUESTIONS ================= -->
+  <div class="tabpane" id="pane-qa" role="tabpanel" aria-labelledby="tab-qa" hidden>
+    <section>
+      <h2>Can I factor each R back into moves and solve the cube that way?</h2>
+      <p>For one cubelet, yes, and easily: there are only 24 possible rotation matrices and each is a product of a few quarter turns. If cubelets could be fixed one at a time the puzzle would be trivial.</p>
+      <p>The catch is that a move never acts on one cubelet. One turn multiplies the same <span class="m">M</span> into nine cubelets at once, and which nine depends on where everything currently is. You need a single sequence of moves such that, for all 20 movable cubelets together, the turns each one happened to ride along with undo its own <span class="m">R</span>. Fixing one piece by its own short factorisation scrambles the eight that came along.</p>
+      <p class="muted">The per-cubelet factorisation is still useful as a lower bound. If some cubelet needs two quarter turns to get home, the whole cube needs at least two moves. Search-based solvers use estimates like this to decide which states to try first.</p>
+    </section>
+
+    <section>
+      <h2>So is this a solver, or only a test?</h2>
+      <p>Only a description and a test. The model supplies three things: a state <span class="m">(c, R)</span> per cubelet, a rule for applying a move, and a test for solved. None of them says which move to make next.</p>
+      <p>A solver is something built on top. A program searches: it tries moves, uses the rule to see where each leads, and uses the test to know when to stop. A person uses a memorised method, which is what the Solve tab teaches. Its building blocks come from the group-theory side: commutators and set-up moves that disturb only a few pieces.</p>
+    </section>
+
+    <section>
+      <h2>Is there exactly one shortest solution?</h2>
+      <p>Usually not. A cube one turn from solved has a single shortest solution, but most states have several. Opposite faces commute (<span class="m">R L = L R</span>), so many shortest solutions come in swapped pairs, and there are often entirely different sequences of the same length.</p>
+      <p>Every state can be solved in at most 20 moves when a half turn counts as one move, and in at most 26 when only quarter turns count. Finding a shortest solution takes a computer search that deepens one move at a time and discards branches using lower bounds. Hand methods give up shortness for something memorable and take 100 moves or more.</p>
+    </section>
+  </div>
+
+  <!-- ================= SOLVE ================= -->
+  <div class="tabpane" id="pane-sv" role="tabpanel" aria-labelledby="tab-sv" hidden>
+    <section>
+      <h2>A method you can do by hand</h2>
+      <p>The guide solves the cube in seven stages, from the yellow bottom layer up to the white top layer. The rule that makes this work: once a stage is finished, every later sequence is chosen so that it gives the finished part back unchanged.</p>
+      <p>Early on you have lots of free space, so short moves do the job. Near the end there is no free space left, so the sequences get longer, because they must lift the solved layers out of the way and put them back.</p>
+      <p class="muted">The guide reads the cube as it is now. Scramble it, turn it yourself, or follow along, and it always shows the next step from the current state. It aims for clarity, not the fewest moves: expect about 140 turns for a full scramble.</p>
+    </section>
+
+    <section>
+      <h2>Reading the moves</h2>
+      <div class="chips" id="sv-notation"></div>
+      <p class="muted">A letter alone is a quarter turn clockwise as you look straight at that face. An apostrophe means counter-clockwise. A 2 means a half turn. Keep the cube in the same grip the whole time: green toward you, white on top.</p>
+    </section>
+
+    <section>
+      <h2>Where you are</h2>
+      <div class="kv" id="sv-stages" style="grid-template-columns:auto 1fr auto"></div>
+    </section>
+
+    <section id="sv-card">
+      <h2 id="sv-title">Next step</h2>
+      <p id="sv-goal" class="muted"></p>
+      <div id="sv-parts" style="display:flex;flex-direction:column;gap:10px"></div>
+      <div class="row">
+        <button class="btn" id="sv-do">Do this step</button>
+        <button class="btn" id="sv-all">Do all remaining steps</button>
+        <button class="btn" id="sv-scramble">Scramble</button>
+      </div>
+    </section>
+  </div>
+
+  <footer>Axes, colours and symbols follow Steffen's video <a href="https://www.youtube.com/watch?v=kRrK4VJBf2s">The Rubik's cube is secretly linear algebra</a>. The group theory, questions and solve tabs are additions.</footer>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+//LOGIC-START
+const Cube = (() => {
+  const I3 = () => [[1,0,0],[0,1,0],[0,0,1]];
+  const mul = (A,B) => A.map((r,i) => [0,1,2].map(j => r[0]*B[0][j] + r[1]*B[1][j] + r[2]*B[2][j]));
+  const app = (A,v) => A.map(r => r[0]*v[0] + r[1]*v[1] + r[2]*v[2]);
+  const dot = (a,b) => a[0]*b[0] + a[1]*b[1] + a[2]*b[2];
+  const eqv = (a,b) => a[0]===b[0] && a[1]===b[1] && a[2]===b[2];
+  const norm1 = v => Math.abs(v[0]) + Math.abs(v[1]) + Math.abs(v[2]);
+  // Rodrigues' formula; every axis/angle used here gives an integer matrix
+  function rot(axis, deg){
+    const l = Math.hypot(...axis), k = axis.map(a => a/l), t = deg*Math.PI/180;
+    const c = Math.cos(t), s = Math.sin(t), K = [[0,-k[2],k[1]],[k[2],0,-k[0]],[-k[1],k[0],0]];
+    return [0,1,2].map(i => [0,1,2].map(j => Math.round((i===j?c:0) + s*K[i][j] + (1-c)*k[i]*k[j]) + 0));
+  }
+  function newState(){
+    const s = [];
+    for (let x=-1;x<=1;x++) for (let y=-1;y<=1;y++) for (let z=-1;z<=1;z++)
+      if (x||y||z) s.push({c:[x,y,z], R:I3()});
+    return s;
+  }
+  const pos = q => app(q.R, q.c);
+  const diag = c => [[c[0],0,0],[0,c[1],0],[0,0,c[2]]];
+  const stickers = q => mul(q.R, diag(q.c));
+  const cubieSolved = q => { const S = stickers(q); return [0,1,2].every(i => [0,1,2].every(j => S[i][j] === (i===j ? q.c[i] : 0))); };
+  const solvedCount = st => st.filter(cubieSolved).length;
+
+  const FACES = {F:[1,0,0], B:[-1,0,0], R:[0,1,0], L:[0,-1,0], U:[0,0,1], D:[0,0,-1]};   // x front, y right, z up
+  function faceOp(face, k){            // k = 1 clockwise, -1 counter-clockwise, 2 half turn
+    const n = FACES[face];
+    return {label: face + (k===2 ? '2' : k===-1 ? "'" : ''), face, k, n, parts:[{n, axis:n, deg:-90*k}]};
+  }
+  function parse(word){
+    const out = [];
+    for (const t of word.trim().split(/\s+/).filter(Boolean)){
+      const m = /^([UDLRFB])(2|'|’|′)?$/.exec(t);
+      if (!m) throw new Error('"' + t + '" is not a move. Use U D L R F B, optionally followed by \' or 2.');
+      out.push(faceOp(m[1], m[2]==='2' ? 2 : m[2] ? -1 : 1));
+    }
+    return out;
+  }
+  // "take it apart" operations that leave the group
+  const twistCW  = {label:'[twist]',  special:true, parts:[{at:[1,1,1], axis:[1,1,1], deg:-120}]};
+  const twistCCW = {label:'[untwist]',special:true, parts:[{at:[1,1,1], axis:[1,1,1], deg:120}]};
+  const flip     = {label:'[flip]',   special:true, parts:[{at:[1,0,1], axis:[1,0,1], deg:180}]};
+  const swap     = {label:'[swap]',   special:true, parts:[{at:[1,0,1], axis:[0,0,1], deg:90},{at:[0,1,1], axis:[0,0,1], deg:-90}]};
+  function invertOp(op){
+    if (op === twistCW) return twistCCW;
+    if (op === twistCCW) return twistCW;
+    if (op.special) return op;                    // flip and swap undo themselves
+    return faceOp(op.face, op.k === 2 ? 2 : -op.k);
+  }
+  function select(st, part){
+    const ids = [];
+    st.forEach((q,i) => { const p = pos(q); if (part.n ? dot(part.n,p) > 0 : eqv(part.at,p)) ids.push(i); });
+    return ids;
+  }
+  function applyOp(st, op){
+    const sels = op.parts.map(pt => select(st, pt));
+    op.parts.forEach((pt,i) => { const Q = rot(pt.axis, pt.deg); sels[i].forEach(id => st[id].R = mul(Q, st[id].R)); });
+    return sels;
+  }
+  function cycles(st, k){               // cycle lengths of the permutation of pieces with k stickers
+    const qs = st.filter(q => norm1(q.c) === k), key = v => v.join(',');
+    const idx = new Map(qs.map((q,i) => [key(q.c), i]));
+    const to = qs.map(q => idx.get(key(pos(q))));
+    const seen = qs.map(() => false), out = [];
+    for (let i=0;i<qs.length;i++){ if (seen[i]) continue; let n=0, j=i; while(!seen[j]){ seen[j]=true; j=to[j]; n++; } if (n>1) out.push(n); }
+    return out.sort((a,b) => b-a);
+  }
+  const parity = cyc => cyc.reduce((s,n) => s + n - 1, 0) % 2;
+  function cornerTwist(q){
+    const p = pos(q), d = q.R.map(r => r[2]*q.c[2]);        // where the white/yellow sticker points
+    const a = d.findIndex(x => x !== 0);
+    if (a === 2) return 0;
+    const s = p[0]*p[1]*p[2];
+    return (s === 1) === (a === 1) ? 1 : 2;
+  }
+  function edgeFlip(q){
+    const h = q.c[2] !== 0 ? 2 : 0, p = pos(q);
+    const d = q.R.map(r => r[h]*q.c[h]), a = d.findIndex(x => x !== 0);
+    return a === (p[2] !== 0 ? 2 : 0) ? 0 : 1;
+  }
+  function invariants(st){
+    const twist = st.filter(q => norm1(q.c)===3).reduce((s,q) => s + cornerTwist(q), 0);
+    const flipSum = st.filter(q => norm1(q.c)===2).reduce((s,q) => s + edgeFlip(q), 0);
+    const cc = cycles(st,3), ec = cycles(st,2), cp = parity(cc), ep = parity(ec);
+    return {twist, flip:flipSum, cc, ec, cp, ep, legal: twist%3===0 && flipSum%2===0 && cp===ep};
+  }
+  function analyse(word){
+    const ops = parse(word);
+    if (!ops.length) return {ops, order:1, moved:0};
+    const st = newState();
+    ops.forEach(o => applyOp(st,o));
+    const moved = st.filter(q => norm1(q.c) > 1 && !cubieSolved(q)).length;
+    let order = 1;
+    while (solvedCount(st) < 26 && order < 2000){ ops.forEach(o => applyOp(st,o)); order++; }
+    return {ops, order, moved};
+  }
+  return {I3, mul, app, dot, norm1, rot, newState, pos, diag, stickers, cubieSolved, solvedCount, FACES, faceOp, parse,
+          twistCW, flip, swap, invertOp, select, applyOp, invariants, analyse};
+})();
+
+/* ---------- layer-by-layer guide: bottom (yellow) first, top (white) last ---------- */
+const Solver = (() => {
+  const {FACES, parse, applyOp, pos, cubieSolved, norm1, invariants} = Cube;
+  const RING = ['F','R','B','L'];                       // going round the cube; RING[i+1] is to the right of RING[i]
+  const COL = [['blue','green'],['orange','red'],['yellow','white']];
+  const colourOf = f => { const v = FACES[f], a = v.findIndex(x => x); return COL[a][v[a] > 0 ? 1 : 0]; };
+  const pieceName = c => [2,0,1].filter(a => c[a]).map(a => COL[a][c[a] > 0 ? 1 : 0]).join('–') + (norm1(c) === 2 ? ' edge' : ' corner');
+  const eq = (a,b) => a[0]===b[0] && a[1]===b[1] && a[2]===b[2];
+  const W = (t, f) => { const i = RING.indexOf(f), m = {f, r:RING[(i+1)%4], b:RING[(i+2)%4], l:RING[(i+3)%4]}; return t.replace(/[frbl]/g, ch => m[ch]); };
+  const macro = (kind, word, face) => ({kind, word, face, ops: parse(word)});
+  const UTURNS = ['U', "U'", 'U2'].map(w => macro('u', w));
+  const slotOf = v => RING.findIndex((f,i) => { const a = FACES[f], b = FACES[RING[(i+1)%4]]; return a[0]+b[0] === v[0] && a[1]+b[1] === v[1]; });
+  const group = (st,k,z) => st.filter(q => norm1(q.c) === k && q.c[2] === z);
+  const mini = qs => qs.map(q => ({c:q.c, R:q.R}));
+  const key = st => st.map(q => q.R.join()).join('|');
+
+  function bfs(start, macros, goal, maxDepth){
+    if (goal(start)) return [];
+    let frontier = [{st:start, path:[]}]; const seen = new Set([key(start)]);
+    for (let d = 0; d < maxDepth; d++){
+      const next = [];
+      for (const node of frontier) for (const m of macros){
+        const st = mini(node.st); m.ops.forEach(o => applyOp(st, o));
+        const k = key(st); if (seen.has(k)) continue; seen.add(k);
+        const path = node.path.concat(m);
+        if (goal(st)) return path;
+        next.push({st, path});
+      }
+      frontier = next;
+    }
+    return null;
+  }
+  function progress(st){
+    if (!group(st,2,-1).every(cubieSolved)) return 0;
+    if (!group(st,3,-1).every(cubieSolved)) return 1;
+    if (!group(st,2,0).every(cubieSolved)) return 2;
+    const te = group(st,2,1), tc = group(st,3,1);
+    if (!te.every(q => q.R[2][2] === 1)) return 3;
+    if (!te.every(cubieSolved)) return 4;
+    if (!tc.every(q => eq(pos(q), q.c))) return 5;
+    if (!tc.every(cubieSolved)) return 6;
+    return 7;
+  }
+  // turn a list of macros into readable parts, merging repeats
+  function toParts(path, why){
+    const parts = [];
+    for (const m of path){
+      const last = parts[parts.length-1];
+      if (last && last.m === m) last.n++; else parts.push({m, n:1});
+    }
+    return parts.map(p => ({word: p.n > 1 ? '(' + p.m.word + ') × ' + p.n : p.m.word, why: why(p.m, p.n)}));
+  }
+  const opsOf = path => path.flatMap(m => m.ops);
+
+  function next(state){
+    if (!invariants(state).legal) return {illegal:true};
+    const stage = progress(state);
+    if (stage === 7) return {done:true};
+    const step = {stage};
+    if (stage === 0){
+      const all = group(state,2,-1), locked = all.filter(cubieSolved), t = all.find(q => !cubieSolved(q));
+      const side = RING.find(f => FACES[f][0] === t.c[0] && FACES[f][1] === t.c[1]);
+      const moves = ['U','D','F','B','L','R'].flatMap(f => [f, f + "'", f + '2']).map(w => macro('m', w));
+      const path = bfs(mini(locked.concat([t])), moves, s => s.every(cubieSolved), 9);
+      step.target = t.c; step.targets = [t.c]; step.title = 'Place the ' + pieceName(t.c);
+      step.parts = [{word: path.map(m => m.word).join(' '), why:
+        'These turns carry the ' + pieceName(t.c) + ' to the bottom, under the ' + colourOf(side) + ' centre, with its yellow side facing down. ' +
+        'Nothing above the cross is solved yet, so any route is allowed as long as the ' + (locked.length ? locked.length + ' cross ' + (locked.length === 1 ? 'edge' : 'edges') + ' already placed end up back home' : 'edge arrives the right way round') + '. ' +
+        'The guide tried every short sequence and kept the shortest. By hand: bring the edge to the top layer above the ' + colourOf(side) + ' centre with yellow facing up, then turn the ' + colourOf(side) + ' face twice.'}];
+      step.ops = opsOf(path);
+    }
+    else if (stage === 1){
+      const t = group(state,3,-1).find(q => !cubieSolved(q)), p = pos(t), home = slotOf(t.c), cur = p[2] === -1 ? slotOf(p) : -1;
+      const trig = i => { const r = RING[(i+1)%4]; return [macro(i === home ? 'drop' : 'lift', r + ' U ' + r + "' U'", r), macro(i === home ? 'drop' : 'lift', 'U ' + r + " U' " + r + "'", r)]; };
+      const macros = UTURNS.concat(trig(home), cur >= 0 && cur !== home ? trig(cur) : []);
+      const path = bfs(mini([t]), macros, s => cubieSolved(s[0]), 9);
+      step.target = t.c; step.targets = [t.c]; step.title = 'Place the ' + pieceName(t.c);
+      step.parts = toParts(path, (m, n) =>
+        m.kind === 'u' ? 'Turn the top layer until the corner sits directly above the slot where it belongs. The top layer is free space, so turning it costs nothing.' :
+        m.kind === 'lift' ? 'The corner is stuck in the wrong bottom slot. This short sequence lifts that slot into the top layer and sets it back down, leaving the corner behind in the top layer.' :
+        'Turning the ' + colourOf(m.face) + ' face raises the empty slot to the top layer, the U turn slides the corner across, and the reverse turns bring the slot back down. ' +
+        (n > 1 ? 'Each pass leaves the corner in a different twist; after ' + n + ' passes it sits with yellow down. ' : '') +
+        'The sequence only touches this one slot and the top layer, so the cross and the corners already placed stay put.');
+      step.ops = opsOf(path);
+    }
+    else if (stage === 2){
+      const t = group(state,2,0).find(q => !cubieSolved(q)), p = pos(t), home = slotOf(t.c), cur = p[2] === 0 ? slotOf(p) : -1;
+      const ins = i => { const f = RING[i], r = RING[(i+1)%4], k = i === home ? 'ins' : 'out';
+        return [macro(k, W("U r U' r' U' f' U f", f), f), macro(k, W("U' l' U l U f U' f'", r), r)]; };
+      const macros = UTURNS.concat(ins(home), cur >= 0 && cur !== home ? ins(cur) : []);
+      const path = bfs(mini([t]), macros, s => cubieSolved(s[0]), 7);
+      const out = path.some(m => m.kind === 'ins') && path.findIndex(m => m.kind !== 'u') !== path.map(m => m.kind !== 'u').lastIndexOf(true);
+      step.target = t.c; step.targets = [t.c]; step.title = 'Place the ' + pieceName(t.c);
+      let firstAlg = true;
+      step.parts = toParts(path, m => {
+        if (m.kind === 'u') return 'Turn the top layer until the edge\'s side colour sits above the centre of the same colour. Its top colour then tells you which neighbouring face it must drop toward.';
+        const kick = m.kind === 'out' || (out && firstAlg); firstAlg = false;
+        if (kick) return 'The edge is sitting in the middle layer in the wrong slot or flipped. Running the insertion sequence on that slot pushes a top-layer edge in and pops ours out into the top layer, where it can be steered.';
+        return 'Hold the ' + colourOf(m.face) + ' face toward you. The first four turns move the edge aside and lift the bottom corner of the slot up to meet it. The last four turns put that corner back down, now carrying the edge with it. Everything else in the bottom two layers is lifted and returned unchanged.';
+      });
+      step.ops = opsOf(path);
+    }
+    else if (stage === 3){
+      const macros = RING.map(f => macro('oll', W("f r U r' U' f'", f), f));
+      const path = bfs(mini(group(state,2,1)), macros, s => s.every(q => q.R[2][2] === 1), 4);
+      step.title = 'Flip top edges until white faces up'; step.targets = group(state,2,1).filter(q => q.R[2][2] !== 1).map(q => q.c);
+      step.parts = toParts(path, m =>
+        'Hold the ' + colourOf(m.face) + ' face toward you. The first turn tips the top-front edge out of the top layer, the four turns in the middle are the commutator from the Group theory tab, and the last turn undoes the first. ' +
+        'The net effect is to flip two top edges and leave the bottom two layers alone. Flips can only happen in pairs (the edge-flip invariant), so the top shows 0, 2 or 4 white edges, never 1 or 3, and at most three rounds are needed.');
+      step.ops = opsOf(path);
+    }
+    else if (stage === 4){
+      const macros = UTURNS.concat(RING.map(f => macro('sune', W("f U f' U f U2 f'", f), f)));
+      const path = bfs(mini(group(state,2,1)), macros, s => s.every(cubieSolved), 7);
+      step.title = 'Move the top edges to their own sides'; step.targets = group(state,2,1).filter(q => !cubieSolved(q)).map(q => q.c);
+      step.parts = toParts(path, m => m.kind === 'u' ?
+        'Turn the top layer so the edges line up with the side centres.' :
+        'This sequence uses only the ' + colourOf(m.face) + ' face and the top. It cycles three top edges while keeping every one of them white side up, and it returns the bottom two layers exactly. It does shuffle the top corners, which is fine because they are not solved yet.');
+      step.ops = opsOf(path);
+    }
+    else if (stage === 5){
+      const macros = RING.flatMap(f => [macro('cyc', W("U f U' b' U f' U' b", f), f), macro('cyc', W("b' U f U' b U f' U'", f), f)]);
+      const path = bfs(mini(group(state,3,1)), macros, s => s.every(q => eq(pos(q), q.c)), 4);
+      step.title = 'Move the top corners to their own places'; step.targets = group(state,3,1).filter(q => !eq(pos(q), q.c)).map(q => q.c);
+      step.parts = toParts(path, () =>
+        'This is a commutator of two short pieces that overlap in a single corner, so almost everything cancels. What is left is a 3-cycle: three top corners trade places, the fourth stays, and no edge moves. ' +
+        'It is always enough: with every edge home, the parity invariant says the corner permutation is even, and every even permutation is built from 3-cycles. The corners may still be twisted; that is the last stage.');
+      step.ops = opsOf(path);
+    }
+    else {
+      const st = mini(state), tw = parse("R' D' R D"), parts = [], ops = [];
+      let pending = 0;
+      const flush = () => { const k = pending % 4; pending = 0; if (!k) return; const m = UTURNS[[0,2,1][k-1]];
+        m.ops.forEach(o => ops.push(o));
+        parts.push({word: m.word, why: 'Turn only the top layer to bring the next twisted corner to the top-front-right spot. Do not turn the whole cube: the same two faces (red and yellow) are used for every corner.'}); };
+      for (let i = 0; i < 4; i++){
+        let n = 0;
+        while (st.find(q => eq(pos(q), [1,1,1])).R[2][2] !== 1 && n < 6){
+          if (!n) flush();
+          for (let j = 0; j < 2; j++) tw.forEach(o => { applyOp(st, o); ops.push(o); });
+          n += 2;
+        }
+        if (n) parts.push({word: "(R' D' R D) × " + n, why:
+          'Two passes of this commutator turn the top-front-right corner by a third of a turn in place; ' + (n === 4 ? 'this corner needs two thirds, so four passes. ' : 'this corner needs one third. ') +
+          'The bottom two layers will look broken while you do this. That is expected. Keep going.'});
+        applyOp(st, UTURNS[0].ops[0]); pending++;      // look at the next corner; the U turns are written out merged
+      }
+      flush();
+      parts.push({word: '', why: 'Why everything heals: the twist invariant says the corner twists add up to a multiple of three, so the total number of passes is always a multiple of six. The sequence R\' D\' R D has order 6, so six passes do nothing at all to the lower layers.'});
+      step.title = 'Twist the top corners white side up'; step.targets = group(state,3,1).filter(q => !cubieSolved(q)).map(q => q.c);
+      step.parts = parts; step.ops = ops;
+    }
+    return step;
+  }
+  return {next, progress};
+})();
+//LOGIC-END
+
+/* ================= view ================= */
+const $ = id => document.getElementById(id);
+const COLORS = {'0+':'#2e9d5d','0-':'#2f6dd2','1+':'#d8453a','1-':'#ef8b2c','2+':'#f3f0e8','2-':'#f0cd3c'};
+const CNAME  = {'0+':'green','0-':'blue','1+':'red','1-':'orange','2+':'white','2-':'yellow'};
+const colorOf = (axis, sign) => COLORS[axis + (sign > 0 ? '+' : '-')];
+const TYPE = {1:'centre', 2:'edge', 3:'corner'};
+const fmt = x => x < 0 ? '−' + (-x) : '' + x;
+const vec = v => '(' + v.map(fmt).join(', ') + ')';
+function mat(M, heads){
+  const n = M[0].length;
+  let h = '<span class="mx" style="--n:' + n + '">';
+  if (heads) h += heads.map(c => '<i class="hd" style="' + (c ? 'background:' + c : 'visibility:hidden') + '"></i>').join('');
+  M.forEach(r => r.forEach(x => h += '<b class="' + (x === 0 ? 'z' : '') + '">' + fmt(x) + '</b>'));
+  return h + '</span>';
+}
+const col = v => mat(v.map(x => [x]));
+const pill = (ok, text) => '<span class="pill ' + (ok === null ? 'neutral' : ok ? 'good' : 'bad') + '">' + (ok === null ? '' : ok ? '✓ ' : '✗ ') + text + '</span>';
+
+let state = Cube.newState();
+let history = [];
+let selected = state.findIndex(q => q.c[0]===1 && q.c[1]===1 && q.c[2]===1);
+let lastMove = Cube.faceOp('R', 1), hoverMove = null;
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* ---------- three.js scene ---------- */
+let three = null;
+function initThree(){
+  const canvas = $('gl'), view = $('view');
+  const renderer = new THREE.WebGLRenderer({canvas, antialias:true, alpha:true});
+  renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(34, 1, 0.1, 100);
+  scene.add(new THREE.AmbientLight(0xffffff, 0.78));
+  const sun = new THREE.DirectionalLight(0xffffff, 0.5); sun.position.set(4, 7, 5); scene.add(sun);
+
+  const root = new THREE.Group();       // math frame (x front, y right, z up) drawn in three.js' frame
+  root.matrixAutoUpdate = false; root.matrix.set(0,1,0,0, 0,0,1,0, 1,0,0,0, 0,0,0,1); scene.add(root);
+  const bodyGeo = new THREE.BoxGeometry(0.97, 0.97, 0.97);
+  const stickGeo = new THREE.PlaneGeometry(0.82, 0.82);
+  const edgeGeo = new THREE.EdgesGeometry(new THREE.BoxGeometry(1.02, 1.02, 1.02));
+  const cubies = state.map((q, id) => {
+    const pivot = new THREE.Object3D(), g = new THREE.Group();
+    const body = new THREE.Mesh(bodyGeo, new THREE.MeshLambertMaterial({color:0x0b0c10}));
+    body.userData.id = id; g.add(body);
+    const mats = [];
+    q.c.forEach((s, a) => {
+      if (!s) return;
+      const m = new THREE.MeshLambertMaterial({color: colorOf(a, s)});
+      m.userData.base = new THREE.Color(colorOf(a, s)); mats.push(m);
+      const st = new THREE.Mesh(stickGeo, m);
+      st.position.setComponent(a, s * 0.487);
+      if (a === 0) st.rotation.y = s * Math.PI/2;
+      if (a === 1) st.rotation.x = -s * Math.PI/2;
+      if (a === 2 && s < 0) st.rotation.y = Math.PI;
+      g.add(st);
+    });
+    const outline = new THREE.LineSegments(edgeGeo, new THREE.LineBasicMaterial({color:0xff7ae0, depthTest:false, transparent:true}));
+    outline.renderOrder = 9; outline.visible = false; g.add(outline);
+    // cartoon of the hidden mechanism on the back of each piece
+    const k = Cube.norm1(q.c), back = new THREE.Vector3(...q.c).multiplyScalar(-0.5);
+    let part;
+    if (k === 1){
+      part = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.17, 0.5, 18), new THREE.MeshLambertMaterial({color:0xc9a24a}));
+      part.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), new THREE.Vector3(...q.c));
+      part.position.copy(back).multiplyScalar(0.7);
+    } else {
+      const sz = k === 2 ? 0.38 : 0.3;
+      part = new THREE.Mesh(new THREE.BoxGeometry(sz, sz, sz), new THREE.MeshLambertMaterial({color: k === 2 ? 0x5f6c9c : 0xb56a8e}));
+      part.position.copy(back);
+    }
+    g.add(part);
+    pivot.add(g); root.add(pivot);
+    return {pivot, g, body, mats, outline, deco:null};
+  });
+
+  function arrow(from, to, color, r, overlay){
+    const dir = to.clone().sub(from), len = dir.length(), grp = new THREE.Group();
+    const mat = new THREE.MeshBasicMaterial({color, depthTest:!overlay, transparent:!!overlay});
+    const head = Math.min(0.28, len*0.4);
+    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(r, r, len-head, 10), mat); shaft.position.y = (len-head)/2;
+    const cone = new THREE.Mesh(new THREE.ConeGeometry(r*2.6, head, 14), mat); cone.position.y = len - head/2;
+    grp.add(shaft, cone);
+    if (overlay) { shaft.renderOrder = 10; cone.renderOrder = 10; }
+    grp.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), dir.normalize());
+    grp.position.copy(from);
+    return grp;
+  }
+  const axes = new THREE.Group(); root.add(axes);
+  const core = new THREE.Group(); root.add(core);
+  const guide = new THREE.Group(); root.add(guide);
+  const markGeo = new THREE.EdgesGeometry(new THREE.BoxGeometry(1.1, 1.1, 1.1));
+  const mark = () => { const m = new THREE.LineSegments(markGeo, new THREE.LineBasicMaterial({color:0x3fe0ff, depthTest:false, transparent:true})); m.renderOrder = 11; return m; };
+  function xray(on){
+    cubies.forEach(cb => [cb.body.material, ...cb.mats].forEach((m, i) => {
+      m.transparent = on; m.opacity = on ? (i ? 0.3 : 0.1) : 1; m.depthWrite = !on; m.needsUpdate = true;
+    }));
+  }
+
+  const cam = {theta:0.62, phi:1.08, r:11};
+  function placeCamera(){
+    const s = 1 + spread();
+    const r = cam.r * (0.75 + 0.25*s) * (view.clientWidth < view.clientHeight ? 1.25 : 1);
+    camera.position.set(r*Math.sin(cam.phi)*Math.sin(cam.theta), r*Math.cos(cam.phi), r*Math.sin(cam.phi)*Math.cos(cam.theta));
+    camera.lookAt(0,0,0);
+  }
+  function resize(){
+    const w = view.clientWidth, h = view.clientHeight;
+    if (!w || !h) return;
+    renderer.setSize(w, h, false); camera.aspect = w/h; camera.updateProjectionMatrix();
+  }
+  new ResizeObserver(resize).observe(view); resize();
+
+  // orbit + pick
+  let drag = null;
+  canvas.addEventListener('pointerdown', e => { drag = {x:e.clientX, y:e.clientY, moved:0}; canvas.setPointerCapture(e.pointerId); });
+  canvas.addEventListener('pointermove', e => {
+    if (!drag) return;
+    const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+    drag.moved += Math.abs(dx) + Math.abs(dy); drag.x = e.clientX; drag.y = e.clientY;
+    cam.theta -= dx*0.008; cam.phi = Math.max(0.15, Math.min(Math.PI-0.15, cam.phi - dy*0.008));
+  });
+  canvas.addEventListener('pointerup', e => {
+    if (drag && drag.moved < 6){
+      const b = canvas.getBoundingClientRect();
+      const ray = new THREE.Raycaster();
+      ray.setFromCamera(new THREE.Vector2(((e.clientX-b.left)/b.width)*2-1, -((e.clientY-b.top)/b.height)*2+1), camera);
+      const hit = ray.intersectObjects(cubies.map(c => c.body))[0];
+      if (hit) { selected = hit.object.userData.id; decorate(); render(); }
+    }
+    drag = null;
+  });
+  canvas.addEventListener('wheel', e => { e.preventDefault(); cam.r = Math.max(7, Math.min(22, cam.r + e.deltaY*0.01)); }, {passive:false});
+
+  const labels = [$('ax0'), $('ax1'), $('ax2')];
+  const tmp = new THREE.Vector3();
+  function frame(now){
+    stepAnim(now);
+    placeCamera();
+    const L = 2.95 * (1 + spread());
+    labels.forEach((el, a) => {
+      tmp.set(0,0,0).setComponent(a, L).applyMatrix4(root.matrix).project(camera);
+      el.style.left = ((tmp.x+1)/2*view.clientWidth) + 'px';
+      el.style.top = ((1-tmp.y)/2*view.clientHeight) + 'px';
+    });
+    renderer.render(scene, camera);
+    requestAnimationFrame(frame);
+  }
+  three = {cubies, arrow, axes, core, guide, mark, xray, frame};
+}
+
+const spread = () => $('explode').value / 100 * 0.9;
+function snap(id){
+  const R = state[id].R, m = new THREE.Matrix4();
+  m.set(R[0][0],R[0][1],R[0][2],0, R[1][0],R[1][1],R[1][2],0, R[2][0],R[2][1],R[2][2],0, 0,0,0,1);
+  three.cubies[id].pivot.quaternion.setFromRotationMatrix(m);
+}
+function layout(){            // positions, axes and selection arrows; depends on explode + selection
+  if (!three) return;
+  const s = 1 + spread();
+  state.forEach((q,i) => three.cubies[i].g.position.set(q.c[0]*s, q.c[1]*s, q.c[2]*s));
+  while (three.axes.children.length) three.axes.remove(three.axes.children[0]);
+  [0,1,2].forEach(a => {
+    const to = new THREE.Vector3().setComponent(a, 2.7*s);
+    three.axes.add(three.arrow(new THREE.Vector3(), to, colorOf(a, 1), 0.035, false));
+  });
+  while (three.core.children.length) three.core.remove(three.core.children[0]);
+  const steel = new THREE.MeshLambertMaterial({color:0x8d93a8});
+  three.core.add(new THREE.Mesh(new THREE.SphereGeometry(0.3, 20, 14), steel));
+  [0,1,2].forEach(a => {
+    const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 2*s, 14), steel);
+    if (a === 0) arm.rotation.z = Math.PI/2;
+    if (a === 2) arm.rotation.x = Math.PI/2;
+    three.core.add(arm);
+  });
+  decorate(); drawGuide(guideStep);
+}
+function decorate(){
+  if (!three) return;
+  const s = 1 + spread();
+  three.cubies.forEach((cb, i) => {
+    cb.outline.visible = i === selected;
+    if (cb.deco) { cb.pivot.remove(cb.deco); cb.deco = null; }
+    if (i !== selected) return;
+    const c = state[i].c, home = new THREE.Vector3(c[0]*s, c[1]*s, c[2]*s), d = new THREE.Group();
+    d.add(three.arrow(new THREE.Vector3(), home, 0xff7ae0, 0.03, true));       // position vector p
+    c.forEach((v, a) => { if (v) d.add(three.arrow(home, home.clone().add(new THREE.Vector3().setComponent(a, v*1.15)), colorOf(a, v), 0.04, true)); });
+    cb.deco = d; cb.pivot.add(d);
+  });
+}
+let guideStep = null;
+function drawGuide(step, busy){          // solve tab: cyan box = where a piece must end up, cyan arrow = from where it is now
+  guideStep = step;
+  if (!three) return;
+  const g = three.guide, s = 1 + spread();
+  while (g.children.length) g.remove(g.children[0]);
+  if (!step || !step.targets) return;
+  step.targets.forEach(c => {
+    const q = state.find(x => x.c.join() === c.join()), p = Cube.pos(q);
+    const box = three.mark(); box.position.set(c[0]*s, c[1]*s, c[2]*s); g.add(box);
+    if (busy || p.join() === c.join()) return;
+    const from = new THREE.Vector3(...p).multiplyScalar(s*1.22), to = new THREE.Vector3(...c).multiplyScalar(s*1.22);
+    g.add(three.arrow(from, to, 0x3fe0ff, 0.05, true));
+  });
+}
+function dimLayer(){
+  if (!three) return;
+  const ids = hoverMove ? new Set(Cube.select(state, hoverMove.parts[0])) : null;
+  three.cubies.forEach((cb, i) => cb.mats.forEach(m => m.color.copy(m.userData.base).multiplyScalar(!ids || ids.has(i) ? 1 : 0.22)));
+}
+
+/* ---------- animation queue ---------- */
+const queue = []; let anim = null;
+function enqueue(op, opts = {}){ queue.push({op, record: opts.record !== false, fast: !!opts.fast}); }
+function duration(fast){ if (reduceMotion) return 0; const base = 620 - $('speed').value * 55; return fast ? Math.min(base, 60) : base; }
+function finish(item){
+  Cube.applyOp(state, item.op);
+  if (item.record) history.push(item.op);
+  if (!item.op.special) lastMove = item.op;
+}
+function stepAnim(now){
+  if (!anim){
+    const item = queue.shift(); if (!item) return;
+    const sels = item.op.parts.map(pt => Cube.select(state, pt));
+    anim = {item, t0:now, dur:duration(item.fast), parts: item.op.parts.map((pt, i) => ({
+      axis: new THREE.Vector3(...pt.axis).normalize(), ang: pt.deg*Math.PI/180,
+      ids: sels[i], base: sels[i].map(id => three.cubies[id].pivot.quaternion.clone()) }))};
+  }
+  let t = anim.dur ? Math.min(1, (now - anim.t0)/anim.dur) : 1;
+  const e = t < .5 ? 2*t*t : 1 - Math.pow(-2*t+2, 2)/2, q = new THREE.Quaternion();
+  anim.parts.forEach(p => { q.setFromAxisAngle(p.axis, p.ang*e); p.ids.forEach((id, k) => three.cubies[id].pivot.quaternion.copy(q).multiply(p.base[k])); });
+  if (t >= 1){
+    const ids = anim.parts.flatMap(p => p.ids), item = anim.item; anim = null;
+    finish(item); ids.forEach(snap); dimLayer(); render();
+  }
+}
+function run(op, opts){
+  if (three) enqueue(op, opts);
+  else { finish({op, record: !opts || opts.record !== false}); render(); }     // no WebGL: math still works
+}
+function resetAll(){
+  queue.length = 0; anim = null; auto = false; state = Cube.newState(); history = [];
+  if (three) { state.forEach((_, i) => snap(i)); dimLayer(); }
+  render();
+}
+function undoAll(){
+  const h = history.slice().reverse(); history = [];
+  h.forEach(op => run(Cube.invertOp(op), {record:false, fast: h.length > 30}));
+  if (!h.length) render();
+}
+
+/* ---------- panels ---------- */
+function render(){
+  const q = state[selected], c = q.c, p = Cube.pos(q), k = Cube.norm1(c);
+  $('la-c').innerHTML = '<span class="lab">selected cubelet</span> c = ' + col(c) +
+    '<span>‖c‖₁ = ' + k + '</span>' + pill(null, TYPE[k] + ', ' + k + (k === 1 ? ' sticker' : ' stickers'));
+  $('la-p').innerHTML = 'p = R·c = ' + mat(q.R) + col(c) + ' = ' + col(p);
+  const heads = c.map((v, a) => v ? colorOf(a, v) : null);
+  $('la-s').innerHTML = 'R·diag(c) = ' + mat(q.R) + mat(Cube.diag(c), heads) + ' = ' + mat(Cube.stickers(q), heads);
+  const ok = Cube.cubieSolved(q);
+  $('la-solved').innerHTML = pill(ok, ok ? 'equals diag(c): this cubelet is solved' : 'differs from diag(c): this cubelet is not solved');
+
+  const mv = hoverMove || lastMove, n = mv.n, Q = Cube.rot(n, mv.parts[0].deg), d = Cube.dot(n, p);
+  $('la-move').innerHTML = '<span class="lab">' + (hoverMove ? 'preview' : 'last move') + '</span><b>' + mv.label + '</b> v = ' + col(n) + ' M = ' + mat(Q);
+  $('la-move-sel').innerHTML = 'For the selected cubelet: v·p = ' + vec(n) + '·' + vec(p) + ' = <b>' + fmt(d) + '</b>. ' +
+    (d > 0 ? 'Positive, so it is in the layer and R ← M·R.' : 'Not positive, so it stays put.') +
+    ' Nine cubelets pass the test for any face.';
+
+  const sc = Cube.solvedCount(state);
+  $('la-count').innerHTML = pill(sc === 26, sc + ' of 26 cubelets satisfy the equation') + (sc === 26 ? '<span class="muted">The cube is solved.</span>' : '');
+
+  const labels = history.map(o => o.label), show = labels.length > 28 ? '… ' + labels.slice(-28).join(' ') : labels.join(' ');
+  const invL = history.slice().reverse().map(o => Cube.invertOp(o).label), showInv = invL.length > 28 ? invL.slice(0, 28).join(' ') + ' …' : invL.join(' ');
+  $('word').innerHTML = 'word (' + labels.length + ' moves): <b>' + (show || 'identity') + '</b>';
+  $('gt-word').textContent = show || 'e (identity)';
+  $('gt-inv').textContent = showInv || 'e (identity)';
+
+  const iv = Cube.invariants(state), par = x => x ? 'odd' : 'even';
+  $('gt-inv-rows').innerHTML =
+    '<span>Corner twists, summed</span><span class="v">' + iv.twist + ' ≡ ' + (iv.twist%3) + ' (mod 3)</span>' + pill(iv.twist%3 === 0, 'must be 0') +
+    '<span>Edge flips, summed</span><span class="v">' + iv.flip + ' ≡ ' + (iv.flip%2) + ' (mod 2)</span>' + pill(iv.flip%2 === 0, 'must be 0') +
+    '<span>Permutation parity</span><span class="v">corners ' + par(iv.cp) + ', edges ' + par(iv.ep) + '</span>' + pill(iv.cp === iv.ep, 'must match');
+  $('gt-verdict').innerHTML = pill(iv.legal, iv.legal ? 'This state is in G: face turns can solve it' : 'This state is outside G: no sequence of face turns can solve it');
+  const cyc = a => a.length ? a.map(n => n + '-cycle').join(' + ') : 'identity';
+  $('gt-cycles').innerHTML =
+    '<span>Corner permutation now</span><span class="v">' + cyc(iv.cc) + '</span><span></span>' +
+    '<span>Edge permutation now</span><span class="v">' + cyc(iv.ec) + '</span><span></span>';
+  renderSolve();
+}
+let analysis = null;
+function renderOrder(){
+  const el = $('gt-order');
+  try {
+    analysis = Cube.analyse($('gt-in').value);
+    const w = analysis.ops.map(o => o.label).join(' ') || 'e', n = analysis.order, total = n * analysis.ops.length;
+    el.innerHTML = '<span><strong>' + w + '</strong> has order <strong>' + n + '</strong>.</span>' +
+      '<span class="muted">One pass disturbs ' + analysis.moved + ' of the 20 movable cubelets. Repeat it ' + n + (n === 1 ? ' time' : ' times') +
+      ' from any state and you are back where you began.</span>';
+    $('gt-once').disabled = !analysis.ops.length;
+    $('gt-all').disabled = !analysis.ops.length || total > 640;
+    $('gt-all').textContent = total > 640 ? 'Play all (too long)' : 'Play all ' + n;
+  } catch (err) {
+    analysis = null; el.innerHTML = '<span>' + err.message + '</span>';
+    $('gt-once').disabled = $('gt-all').disabled = true;
+  }
+}
+
+/* ---------- wiring ---------- */
+['U','D','L','R','F','B'].forEach(f => [1,-1].forEach(k => {
+  const op = Cube.faceOp(f, k), b = document.createElement('button');
+  b.textContent = op.label; b.title = 'Turn the ' + f + ' face ' + (k === 1 ? 'clockwise' : 'counter-clockwise');
+  b.style.order = k === 1 ? 0 : 1;
+  b.onclick = () => run(op);
+  const on = () => { hoverMove = op; dimLayer(); render(); }, off = () => { hoverMove = null; dimLayer(); render(); };
+  b.onmouseenter = on; b.onmouseleave = off; b.onfocus = on; b.onblur = off;
+  $('moves').appendChild(b);
+}));
+$('scramble').onclick = () => { let last = ''; for (let i=0;i<20;i++){ let f; do f = 'UDLRFB'[Math.random()*6|0]; while (f === last); last = f; run(Cube.faceOp(f, [1,-1,2][Math.random()*3|0]), {fast:true}); } };
+$('undo').onclick = $('gt-undo').onclick = undoAll;
+$('reset').onclick = resetAll;
+$('explode').oninput = layout;
+$('xray').onchange = () => { if (three) three.xray($('xray').checked); $('open-up').textContent = $('xray').checked ? 'Close the cube' : 'Open the cube up'; };
+$('open-up').onclick = () => {
+  const open = !$('xray').checked;
+  $('xray').checked = open; $('explode').value = open ? 60 : 0;
+  layout(); $('xray').onchange();
+};
+$('gt-twist').onclick = () => run(Cube.twistCW);
+$('gt-flip').onclick = () => run(Cube.flip);
+$('gt-swap').onclick = () => run(Cube.swap);
+$('gt-in').oninput = renderOrder;
+$('gt-once').onclick = () => analysis && analysis.ops.forEach(o => run(o));
+$('gt-all').onclick = () => { if (!analysis) return; for (let i=0;i<analysis.order;i++) analysis.ops.forEach(o => run(o, {fast:true})); };
+[["R", "one turn"], ["R U", "two turns"], ["R U R' U'", "commutator"], ["R2 U2", "half turns"], ["R U2 D' B D'", "longest possible"]].forEach(([w, note]) => {
+  const b = document.createElement('button'); b.className = 'btn mono'; b.textContent = w; b.title = note;
+  b.onclick = () => { $('gt-in').value = w; renderOrder(); };
+  $('gt-presets').appendChild(b);
+});
+$('la-colors').innerHTML = Object.keys(COLORS).map(k => {
+  const a = +k[0], s = k[1] === '+' ? 1 : -1, v = [0,0,0]; v[a] = s;
+  return '<span class="chip"><i class="sw" style="background:' + COLORS[k] + '"></i>' + (s > 0 ? '+' : '−') + 'e<sub>' + 'xyz'[a] + '</sub> ' + CNAME[k] + '</span>';
+}).join('');
+const tabs = ['la','gt','qa','sv'].map(k => [$('tab-' + k), $('pane-' + k)]);
+tabs.forEach(([t, pane]) => t.onclick = () => { tabs.forEach(([t2, p2]) => { t2.setAttribute('aria-selected', t2 === t); p2.hidden = p2 !== pane; }); render(); });
+addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' || e.ctrlKey || e.metaKey || e.altKey) return;
+  const f = e.key.toUpperCase();
+  if (f.length === 1 && 'UDLRFB'.includes(f)) run(Cube.faceOp(f, e.shiftKey ? -1 : 1));
+});
+
+/* ---------- solve guide ---------- */
+const STAGES = [
+  ['Yellow cross on the bottom', 'Put the four yellow edges on the bottom face, each one also matching the centre on its side. Edges come first because they are the easiest pieces to steer while nothing else matters.'],
+  ['Bottom corners', 'Drop the four yellow corners into the bottom layer. One four-turn sequence does all of it: repeat it until the corner sits right.'],
+  ['Middle-layer edges', 'Fill the four edge slots of the middle layer from the top layer, without breaking the bottom.'],
+  ['White cross on top', 'Get white facing up on all four top edges. Only their flip matters here, not where they are.'],
+  ['Top edges to their sides', 'Rearrange the four top edges so each side colour matches its centre.'],
+  ['Top corners to their places', 'Move each top corner to its own spot. It may still be twisted.'],
+  ['Twist the top corners', 'Turn each top corner in place until white faces up. This finishes the cube.']
+];
+let auto = false, curStep = null;
+function playStep(fast){
+  if (!curStep || !curStep.ops) return;
+  const ops = curStep.ops; curStep = null;
+  if (three) { ops.forEach(o => enqueue(o, {fast})); renderSolve(); }
+  else { ops.forEach(o => finish({op:o, record:true})); render(); }
+}
+function renderSolve(){
+  if ($('pane-sv').hidden) { if (guideStep) drawGuide(null); return; }
+  const busy = queue.length > 0 || !!anim;
+  $('sv-do').disabled = busy; $('sv-scramble').disabled = busy;
+  $('sv-all').textContent = auto ? 'Pause' : 'Do all remaining steps';
+  if (busy) { drawGuide(guideStep, true); return; }
+  const step = Solver.next(state), done = step.illegal ? -1 : step.done ? 7 : step.stage;
+  curStep = step; drawGuide(step);
+  $('sv-stages').innerHTML = STAGES.map((s, i) =>
+    '<span class="m" style="color:var(--ink-2)">' + (i+1) + '</span><span>' + s[0] + '</span>' +
+    (done < 0 ? pill(null, 'unknown') : i < done ? pill(true, 'done') : i === done ? '<span class="pill" style="color:var(--accent)">now</span>' : pill(null, 'later'))).join('');
+  $('sv-do').hidden = $('sv-all').hidden = !step.ops; $('sv-scramble').hidden = !step.done;
+  if (step.illegal){
+    auto = false;
+    $('sv-title').textContent = 'This cube cannot be solved by turning';
+    $('sv-goal').textContent = 'A piece has been twisted, flipped or swapped out of the group (see card 3 of the Group theory tab). Press the same button there again to repair it, or press Reset.';
+    $('sv-parts').innerHTML = '';
+  } else if (step.done){
+    auto = false;
+    $('sv-title').textContent = 'The cube is solved';
+    $('sv-goal').textContent = 'Scramble it and the guide starts again from stage 1.';
+    $('sv-parts').innerHTML = '';
+  } else {
+    $('sv-title').innerHTML = '<span class="n">Stage ' + (step.stage+1) + '</span>' + step.title;
+    $('sv-goal').textContent = STAGES[step.stage][1] + ' ' + (step.stage < 3 ? 'On the cube, the light-blue box marks where this piece belongs and the light-blue arrow points to it from where the piece is now. The piece itself is outlined in pink.' : step.stage === 3 || step.stage === 6 ? 'On the cube, light-blue boxes mark the pieces that still need turning over.' : 'On the cube, each light-blue arrow points from a piece to the light-blue box where it belongs.');
+    $('sv-parts').innerHTML = step.parts.map(p => '<div class="result">' + (p.word ? '<span class="big">' + p.word + '</span>' : '') + '<span>' + p.why + '</span></div>').join('');
+    if (step.target){
+      const id = state.findIndex(q => q.c.join() === step.target.join());
+      if (id !== selected){ selected = id; decorate(); }
+    }
+    if (auto) playStep(true);
+  }
+  $('sv-all').textContent = auto ? 'Pause' : 'Do all remaining steps';
+}
+$('sv-do').onclick = () => playStep(false);
+$('sv-all').onclick = () => { auto = !auto; if (auto && curStep) playStep(true); else renderSolve(); };
+$('sv-scramble').onclick = () => $('scramble').onclick();
+$('sv-notation').innerHTML = [['U','top','#f3f0e8'],['D','bottom','#f0cd3c'],['F','front','#2e9d5d'],['B','back','#2f6dd2'],['R','right','#d8453a'],['L','left','#ef8b2c']]
+  .map(([f, n, c]) => '<span class="chip"><i class="sw" style="background:' + c + '"></i>' + f + ' ' + n + '</span>').join('');
+
+/* ---------- questions tab ---------- */
+(() => {
+  const MU = Cube.rot([0,0,1], -90), MF = Cube.rot([1,0,0], -90), R2 = Cube.mul(MF, MU), c = [1,1,1];
+  $('qa-ex1').innerHTML = '<span class="lab">after U</span> R = M<sub>U</sub> = ' + mat(MU) + ' p = R·c = ' + col(Cube.app(MU, c));
+  $('qa-ex2').innerHTML = '<span class="lab">after F</span> R = M<sub>F</sub>·M<sub>U</sub> = ' + mat(R2) + ' p = R·c = ' + col(Cube.app(R2, c));
+  $('qa-show').onclick = () => {
+    resetAll(); selected = state.findIndex(q => q.c.join() === '1,1,1'); decorate(); render();
+    run(Cube.faceOp('U', 1)); run(Cube.faceOp('F', 1));
+  };
+})();
+
+try { initThree(); layout(); requestAnimationFrame(three.frame); }
+catch (err) {
+  three = null;
+  $('view').innerHTML = '<div class="fallback">The 3D view needs WebGL, which this browser did not provide. The move buttons and all the math panels still work.</div>';
+}
+render(); renderOrder();
+</script>
+</body>
+</html>
