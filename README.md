@@ -2,6 +2,8 @@
 
 An interactive 3D Rubik's cube that shows the linear algebra and the group theory behind it, with a step-by-step solving guide. It is a single web page: open `index.html` in a browser.
 
+**Live page: https://shanem73.github.io/Rubik-cube/**
+
 The linear-algebra model follows Steffen's video [The Rubik's cube is secretly linear algebra](https://www.youtube.com/watch?v=kRrK4VJBf2s): every cubelet is a vector, every colour is a basis vector, and a move is a dot product followed by a matrix product.
 
 ## What is in it
