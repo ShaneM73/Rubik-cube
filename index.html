@@ -116,7 +116,7 @@ footer a{color:inherit}
       <button class="sbtn primary" id="scramble">Scramble</button>
       <button class="sbtn" id="undo">Apply inverse word</button>
       <button class="sbtn" id="reset">Reset</button>
-      <label class="slider" for="speed">Speed <input id="speed" type="range" min="1" max="10" value="6"></label>
+      <label class="slider" for="speed">Speed <input id="speed" type="range" min="1" max="10" value="4"> <span id="speed-out" style="min-width:9.5em"></span></label>
       <label class="slider" for="explode">Explode <input id="explode" type="range" min="0" max="100" value="0"></label>
       <label class="slider" for="xray"><input id="xray" type="checkbox" style="width:auto"> X-ray</label>
     </div>
@@ -807,7 +807,8 @@ function dimLayer(){
 /* ---------- animation queue ---------- */
 const queue = []; let anim = null;
 function enqueue(op, opts = {}){ queue.push({op, record: opts.record !== false, fast: !!opts.fast}); }
-function duration(fast){ if (reduceMotion) return 0; const base = 620 - $('speed').value * 55; return fast ? Math.min(base, 60) : base; }
+const turnMs = () => Math.round(1600 * Math.pow(0.72, $('speed').value - 1));      // slider 1..10 -> 1600 ms .. 83 ms per turn
+function duration(fast){ const base = turnMs(); return fast ? Math.max(60, base * 0.3) : base; }
 function finish(item){
   Cube.applyOp(state, item.op);
   if (item.record) history.push(item.op);
@@ -914,6 +915,9 @@ $('scramble').onclick = () => { let last = ''; for (let i=0;i<20;i++){ let f; do
 $('undo').onclick = $('gt-undo').onclick = undoAll;
 $('reset').onclick = resetAll;
 $('explode').oninput = layout;
+$('speed').oninput = () => { const ms = turnMs(); $('speed-out').textContent = (ms >= 1000 ? (ms/1000).toFixed(1) + ' s' : ms + ' ms') + ' per turn'; };
+$('speed').oninput();
+if (reduceMotion) { $('speed').value = 10; $('speed').oninput(); }
 $('xray').onchange = () => { if (three) three.xray($('xray').checked); $('open-up').textContent = $('xray').checked ? 'Close the cube' : 'Open the cube up'; };
 $('open-up').onclick = () => {
   const open = !$('xray').checked;
